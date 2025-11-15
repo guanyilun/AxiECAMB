@@ -1156,12 +1156,10 @@ contains
        !end if
 
        if (Params%axion_isocurvature) then
-
-          Params%amp_i = Params%Hinf**2/(pi**2*Params%phiinit**2)
-          Params%r_val  = 2*(Params%Hinf**2/(pi**2.*Params%InitPower%ScalarPowerAmp(1)))
-          Params%alpha_ax = Params%amp_i/Params%InitPower%ScalarPowerAmp(1)
-          !print*, 'computing isocurvature', Params%amp_i, Params%r_val, Params%axfrac**2*Params%amp_i/Params%InitPower%ScalarPowerAmp(1), Params%Hinf
-          !print*, 'computing isocurvature, Params%amp_i, Params%r_val, Params%axfrac**2*Params%amp_i/Params%InitPower%ScalarPowerAmp(1), Params%Hinf'
+         !YG 111525 fix missing h^2 factor
+         Params%amp_i = Params%Hinf**2/(pi**2*Params%phiinit**2) * hsq
+         Params%r_val  = 2*(Params%Hinf**2/(pi**2.*Params%InitPower%ScalarPowerAmp(1)))
+         Params%alpha_ax = Params%amp_i/Params%InitPower%ScalarPowerAmp(1)
        end if
 
        !output omega_r

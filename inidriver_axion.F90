@@ -317,11 +317,12 @@ program driver
      P%Hinf = (10**P%Hinf)/mplanck ! computing the ratio of Hinflation to Mplanck
      !       print*, 'This is Hinflation renee', P%Hinf
      P%axion_isocurvature = Ini_Read_Logical('axion_isocurvature', .true.)
+     !YG 111525 re-enable isocurvature
      !RL 121924 disable isocurvature
-     if (P%axion_isocurvature .eqv. .true.) then
-        write(*, *) 'WARNING: axion isocurvature disabled in this release, proceeding without'
-        P%axion_isocurvature = .false.
-     end if
+     ! if (P%axion_isocurvature .eqv. .true.) then
+     !    write(*, *) 'WARNING: axion isocurvature disabled in this release, proceeding without'
+     !    P%axion_isocurvature = .false.
+     ! end if
 
 
   else
@@ -333,13 +334,6 @@ program driver
      P%ma     = Ini_Read_Double('m_ax')  
 
   end if
-
-  !	print*, 'hi renee omk', P%omegak, 'omegav', P%omegav, 'grhog', grhog, 'P%grhor', (P%grhor*(c**2.0d0)/((1.d5**2.0d0)))/3.0d0, 'omegah2_rad', P%omegah2_rad 
-
-
-
-
-
 
   !JD 08/13 begin changes for nonlinear lensing of CMB + LSS compatibility
   !P%Transfer%redshifts -> P%Transfer%PK_redshifts and P%Transfer%num_redshifts -> P%Transfer%PK_num_redshifts
