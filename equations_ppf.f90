@@ -2671,11 +2671,10 @@ contains
             *(((CP%omegab+CP%omegac+CP%omegaax)/(4.0d0*CP%omegar))**4.0d0)))*(FF**4.0d0)
 
 
-       !		initv(6,i_clxax)=1.0d0-(x*x)/(10.0d0)
-       !		initv(6,i_v_ax)=-x/5.0d0
+       initv(6, i_dphi_ax) = 0.5_dl * v1_bg * initv(6, i_clxax)
+       initv(6, i_dphidot_ax) = 0.0_dl  ! higher precision: v2_bg * initv(6, i_v_ax)
 
        ! Normalisation of *gamma* perturbation
-
        AA=Ra*(omr**4.0d0)*(FF**4.0d0)
        !		print*,AA,omtau
 
