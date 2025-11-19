@@ -275,7 +275,7 @@ program driver
      P%use_axfrac = Ini_Read_Logical('use_axfrac',.false.)
      ! read in axion mass
      P%ma     = Ini_Read_Double('m_ax') !! RH axion mass
-     P%g_axion = Ini_Read_Double('g_axion', 0.0_dl) !! YG axion photon coupling constant
+     P%g_axion = Ini_Read_Double('g_axion', 0.0_dl) !! YG axion photon coupling constant g_axion=g_a\gm * ​M_pl​
      if (P%ma < 0) P%ma = 10**P%ma ! RH making this exponential from the inidriver
      P%m_ovH0 = P%ma/P%H0_eV !RL 050724
 
@@ -333,7 +333,7 @@ program driver
      P%omegav = Ini_Read_Double('omega_lambda')
      P%omegaax = Ini_Read_Double('omega_axion')/(P%H0/100)**2
      P%ma     = Ini_Read_Double('m_ax')  
-     P%g_axion = Ini_Read_Double('g_axion', 0.0_dl)
+     P%g_axion = Ini_Read_Double('g_axion', 0.0_dl)  ! YG: g_a\gm M_pl
 
   end if
 

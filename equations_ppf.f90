@@ -1840,7 +1840,7 @@ contains
 
   !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
   !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-subroutine output(EV,y,j,tau,sources,dgpi_out)
+  subroutine output(EV,y,j,tau,sources,dgpi_out)
     use ThermoData
     use lvalues
     use constants
@@ -2273,7 +2273,7 @@ subroutine output(EV,y,j,tau,sources,dgpi_out)
        
     else
        sources(2)=0
-       sources(3)=0 !RL ensure B-mode is zeroed
+       sources(3)=0 !YG ensure B-mode is zeroed
     end if
 
     ! YG: Standard CAMB puts Lensing in sources(3). 
@@ -2334,15 +2334,15 @@ subroutine output(EV,y,j,tau,sources,dgpi_out)
     !!write(032823, '(36e52.42,\)') CP%m_ovH0, k, a, CP%a_osc, tau, CP%tau_osc, adotoa, hLddot_forquasitest, z, v1_bg, v2_bg, v2dot_forquasitest, dv1, dv1_quasitest, dv2, dv2_quasitest, clxax_kg, clxax_quasitest, 2.0d0*v2_bg*dv2/a2, 2.0d0*(CP%m_ovH0**2.0d0)*v1_bg*dv1 !dgrho, dgp, clxax_kg, dgpaxa2_kg, dgpnumass_temp, grhoax_t*clxax_kg, grhoc_t*clxc, grhob_t*clxb, grhog_t*clxg, grhor_t*clxr, dgrhonumass_temp
     !write(033123, '(36e52.42,\)') CP%m_ovH0, k, k/(CP%m_ovH0*CP%H0_in_Mpc_inv), a, CP%a_osc, tau, CP%tau_osc, adotoa, CP%m_ovH0*CP%H0_in_Mpc_inv/(adotoa/a), v1_bg, v2_bg, dv1, dv1_quasitest, dv2, dv2_quasitest, clxax_kg, clxax_quasitest, delta_rho_sync_quasitest, delta_p_sync_quasitest, delta_rho_rest_quasitest, delta_p_rest_quasitest, delta_p_rest_quasitest/delta_rho_rest_quasitest, ((k/mnorm)**2.0d0)/(1.0d0+(k/mnorm)**2.0d0)
     kamnorm = k2/(a2*((CP%m_ovH0*CP%H0_in_Mpc_inv)**2.0_dl)) !RL testing
-  if (kamnorm .lt. 1.e-13_dl) then
-    !!write(*, *) 'Rayne, machine precision', kamnorm
-    !RL dealing with machine precision issue - Taylor expand to leading order
-    csquared_ax = kamnorm/4.0_dl + 5.0_dl*(adotoa**2.0_dl)/(4.0_dl*(k2/kamnorm))    
-  else  
+    if (kamnorm .lt. 1.e-13_dl) then
+      !!write(*, *) 'Rayne, machine precision', kamnorm
+      !RL dealing with machine precision issue - Taylor expand to leading order
+      csquared_ax = kamnorm/4.0_dl + 5.0_dl*(adotoa**2.0_dl)/(4.0_dl*(k2/kamnorm))    
+    else  
       csquared_ax = (sqrt(1.0_dl + kamnorm) - 1.0_dl)**2.0_dl/(kamnorm) + 5.0_dl*(adotoa**2.0_dl)/(4.0_dl*(k2/kamnorm))     
       !csquared_ax = (sqrt(1.0_dl + kamnorm) - 1.0_dl)**2.0_dl/(kamnorm) + 1.1_dl*(adotoa**2.0_dl)/((k2/kamnorm))
-   end if
-   !!write(081423, '(36e52.42,\)') CP%m_ovH0, k, k/(CP%m_ovH0*CP%H0_in_Mpc_inv), a, CP%a_osc, tau, CP%tau_osc, 2.0_dl*k*z, etak, clxax_kg, sources(1), sources(2), sources(3), ISW, pig, pigdot, clxg, ypol(2), ypolprime(2), ypol(3), ypolprime(3), opacity_use, dopacity_use, sigma, EV%Kf(1),  EV%Kf(2), vb, vbdot, octg, octgprime, qg, qgdot, dgpi, vis(j), dvis(j), ddvis(j), diff_rhopi, dgrho, gpres, grho, expmmu(j) !(4.D0/3.D0*k*EV%Kf(1)*sigma)*expmmu(j), (-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k*expmmu(j), -diff_rhopi*expmmu(j)/k**2-1.D0/adotoa*dgrho/3.D0, (3.D0*(gpres-gpres_ax + gpresaxef_test)+5.D0*grho)*sigma/k/3.D0, (-2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j) 
+    end if
+    !!write(081423, '(36e52.42,\)') CP%m_ovH0, k, k/(CP%m_ovH0*CP%H0_in_Mpc_inv), a, CP%a_osc, tau, CP%tau_osc, 2.0_dl*k*z, etak, clxax_kg, sources(1), sources(2), sources(3), ISW, pig, pigdot, clxg, ypol(2), ypolprime(2), ypol(3), ypolprime(3), opacity_use, dopacity_use, sigma, EV%Kf(1),  EV%Kf(2), vb, vbdot, octg, octgprime, qg, qgdot, dgpi, vis(j), dvis(j), ddvis(j), diff_rhopi, dgrho, gpres, grho, expmmu(j) !(4.D0/3.D0*k*EV%Kf(1)*sigma)*expmmu(j), (-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k*expmmu(j), -diff_rhopi*expmmu(j)/k**2-1.D0/adotoa*dgrho/3.D0, (3.D0*(gpres-gpres_ax + gpresaxef_test)+5.D0*grho)*sigma/k/3.D0, (-2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j) 
     !write(*,'(36e52.42,\)') CP%H0_in_Mpc_inv
     !write(043023, '(36e52.42,\)') CP%m_ovH0, k, k/(CP%m_ovH0*CP%H0_in_Mpc_inv), a, CP%a_osc, tau, CP%tau_osc, adotoa, CP%m_ovH0*CP%H0_in_Mpc_inv/(adotoa/a), v1_bg, v2_bg, dorp*(CP%H0**2.0d0/1.0d4)/grhom, dv1, dv2, drhoax_kg, clxc, clxax_kg
     !write(*, *) 'k, clxc, clxax_kg in output', k, clxc, clxax_kg !RL

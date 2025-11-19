@@ -1092,9 +1092,9 @@ module ModelData
   Type(ClTransferData), save, target :: CTransScal, CTransTens, CTransVec
 
   !Computed output power spectra data
-  !YG: add C_B = 7
-  integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6, C_B = 7
-  integer :: C_last = C_B
+  !YG: add C_B = 7, C_EB = 8
+  integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6, C_B = 7, C_EB = 8
+  integer :: C_last = C_EB
   integer, parameter :: CT_Temp =1, CT_E = 2, CT_B = 3, CT_Cross=  4
 
   logical :: has_cl_2D_array = .false.
@@ -1248,20 +1248,22 @@ contains
        do in=1,CP%InitPower%nn
           do il=lmin,min(10000,CP%Max_l)
              ! YG Explicitly output T, E, B, TE
-             write(fileio_unit,'(1I6,4E15.5)') il, &
+             write(fileio_unit,'(1I6,5E15.5)') il, &
                   fact*Cl_scalar(il,in,C_Temp), &
                   fact*Cl_scalar(il,in,C_E),    &
                   fact*Cl_scalar(il,in,C_B),    &
-                  fact*Cl_scalar(il,in,C_Cross)
+                  fact*Cl_scalar(il,in,C_Cross), &
+                  fact*Cl_scalar(il,in,C_EB)
           end do
           
           ! Handle the high-L tail loop similarly...
           do il=10100,CP%Max_l, 100
-             write(fileio_unit,'(1E15.5,4E15.5)') real(il), &
+             write(fileio_unit,'(1E15.5,5E15.5)') real(il), &
                   fact*Cl_scalar(il,in,C_Temp), &
                   fact*Cl_scalar(il,in,C_E),    &
                   fact*Cl_scalar(il,in,C_B),    &
-                  fact*Cl_scalar(il,in,C_Cross)
+                  fact*Cl_scalar(il,in,C_Cross), &
+                  fact*Cl_scalar(il,in,C_EB)
           end do
        end do
        close(fileio_unit)
@@ -1307,12 +1309,14 @@ contains
        do in=1,CP%InitPower%nn
           do il=lmin,CP%Max_l_tensor
              ! YG: Added + Cl_scalar(il, in, C_B) to the B-mode column
-             write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
+             write(fileio_unit,'(1I6,5E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
                   fact*(Cl_tensor(il,in, CT_B) + Cl_scalar(il, in, C_B)), &
-                  fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
+                  fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross)), &
+                  fact*Cl_scalar(il,in,C_EB)
           end do
           do il=CP%Max_l_tensor+1,CP%Max_l
-             write(fileio_unit,'(1I6,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
+             write(fileio_unit,'(1I6,5E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross), &
+                  fact*Cl_scalar(il,in,C_EB)
           end do
        end do
        close(fileio_unit)

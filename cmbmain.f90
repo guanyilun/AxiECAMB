@@ -865,12 +865,12 @@ contains
        if (WantLateTime) then
           !YG: add extra source to include B-mode at index 3, lensing at index 4
           SourceNum=4
-          C_last = C_PhiE
+          C_last = C_EB
           SourceNum=SourceNum + num_redshiftwindows + num_extra_redshiftwindows
        else
           ! YG: Was 2, now 3 (T, E, B)
           SourceNum=3
-          C_last = C_Cross
+          C_last = C_EB
        end if
     else
        SourceNum=3
@@ -2625,6 +2625,9 @@ contains
                    !YG: add B-mode
                    iCl_scalar(j,C_B,pix) = iCl_scalar(j,C_B,pix) + &
                                            apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk                   
+                   !YG: add EB mode
+                   iCl_scalar(j,C_EB,pix) = iCl_scalar(j,C_EB,pix) + &
+                                            apowers * CTrans%Delta_p_l_k(2,j,q_ix) * CTrans%Delta_p_l_k(3,j,q_ix) * dlnk
                 end if
              end do
 
