@@ -1840,7 +1840,7 @@ contains
 
   !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
   !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-  subroutine output(EV,y,j,tau,sources,dgpi_out)
+subroutine output(EV,y,j,tau,sources,dgpi_out)
     use ThermoData
     use lvalues
     use constants
@@ -1889,6 +1889,13 @@ contains
     real(dl) wef_test, gpresaxef_test !RL 08152023
     real(dl) sigma_test, v_ax_test !RL
     !!real(dl) :: leadingterms(5) !RL 08142023
+
+    ! YG: Birefringence Variables
+    real(dl) :: phi_now, phi_today, rot_angle
+    real(dl) :: Phi_envelope_now, J0_arg, J0_factor
+    real(dl) :: source_E_original
+    intrinsic :: BESSEL_J0 
+
     H0_in_Mpc_inv = dble(CP%H0)/dble(c/1.0d3) !RL
 
     yprime = 0
@@ -2196,17 +2203,82 @@ contains
     !        -9.D0/160.D0*dopac(j)*pig)*vis(j) - diff_rhopi*expmmu(j)+((-27.D0/80.D0*ypol(2)-9.D0/ &
     !        160.D0*pig)*opac(j)+3.D0/16.D0*pigdot+9.D0/8.D0*ypolprime(2))*dvis(j)+9.D0/ &
     !        8.D0*ddvis(j)*ypol(2)+3.D0/16.D0*ddvis(j)*pig)/t92
-
+    
 
     if (x > 0._dl) then
        !E polarization source
-       sources(2)=vis(j)*polter*(15._dl/8._dl)/divfac
-       !factor of four because no 1/16 later
+       !Calculate intrinsic E-mode source (Thomson scattering)
+       source_E_original = vis(j)*polter*(15._dl/8._dl)/divfac
+       
+       ! YG: Birefringence Implementation
+       
+       if (.not. EV%oscillation_started) then
+          ! --- SLOW REGIME (KG Equation) ---
+          ! Field is evolving slowly, calculate exact rotation beta
+          
+          ! 1. Get current field value from spline (Already called at top of subroutine into v1_bg)
+          phi_now = v1_bg
+          
+          ! 2. Get field value at today (z=0). 
+          if (CP%a_osc > 1.0_dl) then
+             ! If a_osc > 1, the table extends all the way to today.
+             phi_today = phinorm_table(ntable)
+          else
+             ! If a_osc < 1, the table stops at a_osc.
+             ! We are in the slow regime locally, but the field oscillates today.
+             ! Assumption: average field today is zero relative to the slow roll.
+             phi_today = 0.0_dl
+          end if
+          
+          ! 3. Calculate rotation angle beta = (g/2) * Delta_phi
+          rot_angle = 0.5_dl * CP%g_axion * (phi_today - phi_now)
+          
+          ! 4. Apply Rotation
+          ! E' = E cos(2b)
+          ! B' = E sin(2b) (Assuming intrinsic B=0)
+          sources(2) = source_E_original * cos(2.0_dl * rot_angle)
+          sources(3) = source_E_original * sin(2.0_dl * rot_angle)
+          
+       else
+          ! --- FAST REGIME (ETA/WKB) ---
+          ! Field is oscillating rapidly. 
+          ! Inverse calculation of envelope amplitude from EFA density.
+          
+          ! 1. Reconstruct Envelope Amplitude Phi from EFA Density (dorp)
+          ! Relation: rho_ax_avg = (dorp*a2)/a2 ~ 1/2 * m^2 * Phi^2
+          ! In code units where dorp is defined: dorp = (m * Phi)^2
+          ! Therefore: Phi_envelope = sqrt(dorp) / m
+          
+          if (dorp > 0._dl) then
+             Phi_envelope_now = sqrt(dorp) / CP%m_ovH0
+          else
+             Phi_envelope_now = 0._dl
+          endif
+          
+          ! 2. Calculate Bessel Argument (g * Phi)
+          ! Note: Rotation angle amplitude is (g/2)*Phi, but phase factor is exp(i*g*phi),
+          ! so the averaging yields J0(g*Phi)
+          J0_arg = CP%g_axion * Phi_envelope_now
+          
+          ! 3. Apply Suppression
+          ! E-modes are suppressed by coherence damping
+          ! B-modes average to zero in the fast oscillation limit
+          J0_factor = BESSEL_J0(J0_arg)
+          
+          sources(2) = source_E_original * J0_factor
+          sources(3) = 0._dl
+          
+       end if
+       ! ====================================================================
+       
     else
        sources(2)=0
+       sources(3)=0 !RL ensure B-mode is zeroed
     end if
 
-    if (CTransScal%NumSources > 2) then
+    ! YG: Standard CAMB puts Lensing in sources(3). 
+    ! We are shifting it to sources(4) to make room for B-modes.
+    if (CTransScal%NumSources > 3) then
        !Get lensing sources
        !Can modify this here if you want to get power spectra for other tracer
        if (tau>taurend .and. CP%tau0-tau > 0.1_dl) then
@@ -2215,12 +2287,13 @@ contains
           phi = -(dgrho +3*dgq*adotoa/k)/(k2*EV%Kf(1)*2)
           ! - dgpi/k2/2
 
-          sources(3) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
+          ! Write to sources(4)
+          sources(4) = -2*phi*f_K(tau-tau_maxvis)/(f_K(CP%tau0-tau_maxvis)*f_K(CP%tau0-tau))
 
           !         sources(3) = -2*phi*(tau-tau_maxvis)/((CP%tau0-tau_maxvis)*(CP%tau0-tau))
           !We include the lensing factor of two here
        else
-          sources(3) = 0
+          sources(4) = 0
        end if
     end if
 
@@ -2264,10 +2337,10 @@ contains
   if (kamnorm .lt. 1.e-13_dl) then
     !!write(*, *) 'Rayne, machine precision', kamnorm
     !RL dealing with machine precision issue - Taylor expand to leading order
-   csquared_ax = kamnorm/4.0_dl + 5.0_dl*(adotoa**2.0_dl)/(4.0_dl*(k2/kamnorm))   
+    csquared_ax = kamnorm/4.0_dl + 5.0_dl*(adotoa**2.0_dl)/(4.0_dl*(k2/kamnorm))    
   else  
-     csquared_ax = (sqrt(1.0_dl + kamnorm) - 1.0_dl)**2.0_dl/(kamnorm) + 5.0_dl*(adotoa**2.0_dl)/(4.0_dl*(k2/kamnorm))     
-     !csquared_ax = (sqrt(1.0_dl + kamnorm) - 1.0_dl)**2.0_dl/(kamnorm) + 1.1_dl*(adotoa**2.0_dl)/((k2/kamnorm))
+      csquared_ax = (sqrt(1.0_dl + kamnorm) - 1.0_dl)**2.0_dl/(kamnorm) + 5.0_dl*(adotoa**2.0_dl)/(4.0_dl*(k2/kamnorm))     
+      !csquared_ax = (sqrt(1.0_dl + kamnorm) - 1.0_dl)**2.0_dl/(kamnorm) + 1.1_dl*(adotoa**2.0_dl)/((k2/kamnorm))
    end if
    !!write(081423, '(36e52.42,\)') CP%m_ovH0, k, k/(CP%m_ovH0*CP%H0_in_Mpc_inv), a, CP%a_osc, tau, CP%tau_osc, 2.0_dl*k*z, etak, clxax_kg, sources(1), sources(2), sources(3), ISW, pig, pigdot, clxg, ypol(2), ypolprime(2), ypol(3), ypolprime(3), opacity_use, dopacity_use, sigma, EV%Kf(1),  EV%Kf(2), vb, vbdot, octg, octgprime, qg, qgdot, dgpi, vis(j), dvis(j), ddvis(j), diff_rhopi, dgrho, gpres, grho, expmmu(j) !(4.D0/3.D0*k*EV%Kf(1)*sigma)*expmmu(j), (-2.D0/3.D0*sigma-2.D0/3.D0*etak/adotoa)*k*expmmu(j), -diff_rhopi*expmmu(j)/k**2-1.D0/adotoa*dgrho/3.D0, (3.D0*(gpres-gpres_ax + gpresaxef_test)+5.D0*grho)*sigma/k/3.D0, (-2.D0/k*adotoa/EV%Kf(1)*etak)*expmmu(j) 
     !write(*,'(36e52.42,\)') CP%H0_in_Mpc_inv

@@ -123,6 +123,8 @@ module ModelParams
      real(dl)  :: omegab, omegac, omegav, omegan, omegaax, ma, m_ovH0, dfac
      real(dl)  :: a_osc, tau_osc, opac_tauosc, expmmu_tauosc, alpha_ax, r_val, omegah2_rad, amp_i, axfrac, omegada, Hinf !RL added tau at oscillation - the correct value will be calculated at init_background in equations_ppf
      real(dl) :: ah_osc, ahosc_ETA, A_coeff, tvarphi_c, tvarphi_cp, tvarphi_s, tvarphi_sp, wEFA_c !RL added background EFA parameters at the switch
+     !YG: add photon-axion coupling constant
+     real(dl) :: g_axion
      real(dl) :: A_coeff_alt !RL 043024 testing with changed A coeff
      real(dl) :: a_skip, dfac_skip, a_skipst !RL 012524 added for skipping recombination
      !Omega baryon, CDM, Lambda and massive neutrino and axions and masses    
@@ -1090,9 +1092,9 @@ module ModelData
   Type(ClTransferData), save, target :: CTransScal, CTransTens, CTransVec
 
   !Computed output power spectra data
-
-  integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6
-  integer :: C_last = C_PhiE
+  !YG: add C_B = 7
+  integer, parameter :: C_Temp = 1, C_E = 2, C_Cross =3, C_Phi = 4, C_PhiTemp = 5, C_PhiE=6, C_B = 7
+  integer :: C_last = C_B
   integer, parameter :: CT_Temp =1, CT_E = 2, CT_B = 3, CT_Cross=  4
 
   logical :: has_cl_2D_array = .false.
@@ -1239,22 +1241,27 @@ contains
     end if
 
     if (CP%WantScalars .and. ScalFile /= '') then
-       last_C=min(C_PhiTemp,C_last)
+       ! YG: We explicitly write 4 columns: TT, EE, BB, TE
+       ! Note: Adjust the format string '(1I6, 4E15.5)' as needed.
+       
        open(unit=fileio_unit,file=ScalFile,form='formatted',status='replace')
        do in=1,CP%InitPower%nn
           do il=lmin,min(10000,CP%Max_l)
-             write(fileio_unit,trim(numcat('(1I6,',last_C))//'E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:last_C) !Default
-             
-             !RL 07282023 for full digit output, remove after testing is done
-             !!!write(fileio_unit,trim(numcat('(1I6,',last_C))//'36e52.42)')il ,fact*Cl_scalar(il,in,C_Temp:last_C)
+             ! YG Explicitly output T, E, B, TE
+             write(fileio_unit,'(1I6,4E15.5)') il, &
+                  fact*Cl_scalar(il,in,C_Temp), &
+                  fact*Cl_scalar(il,in,C_E),    &
+                  fact*Cl_scalar(il,in,C_B),    &
+                  fact*Cl_scalar(il,in,C_Cross)
           end do
+          
+          ! Handle the high-L tail loop similarly...
           do il=10100,CP%Max_l, 100
-             write(fileio_unit,trim(numcat('(1E15.5,',last_C))//'E15.5)') real(il),&
-                  fact*Cl_scalar(il,in,C_Temp:last_C) !Default
-             
-             !RL 07282023 for full digit output, remove after testing is done
-             !!!write(fileio_unit,trim(numcat('(1E15.5,',last_C))//'36e52.42)') real(il),&
-             !!!     fact*Cl_scalar(il,in,C_Temp:last_C)
+             write(fileio_unit,'(1E15.5,4E15.5)') real(il), &
+                  fact*Cl_scalar(il,in,C_Temp), &
+                  fact*Cl_scalar(il,in,C_E),    &
+                  fact*Cl_scalar(il,in,C_B),    &
+                  fact*Cl_scalar(il,in,C_Cross)
           end do
        end do
        close(fileio_unit)
@@ -1299,8 +1306,10 @@ contains
        open(unit=fileio_unit,file=TotFile,form='formatted',status='replace')
        do in=1,CP%InitPower%nn
           do il=lmin,CP%Max_l_tensor
+             ! YG: Added + Cl_scalar(il, in, C_B) to the B-mode column
              write(fileio_unit,'(1I6,4E15.5)')il, fact*(Cl_scalar(il, in, C_Temp:C_E)+ Cl_tensor(il,in, C_Temp:C_E)), &
-                  fact*Cl_tensor(il,in, CT_B), fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
+                  fact*(Cl_tensor(il,in, CT_B) + Cl_scalar(il, in, C_B)), &
+                  fact*(Cl_scalar(il, in, C_Cross) + Cl_tensor(il, in, CT_Cross))
           end do
           do il=CP%Max_l_tensor+1,CP%Max_l
              write(fileio_unit,'(1I6,4E15.5)')il ,fact*Cl_scalar(il,in,C_Temp:C_E), 0._dl, fact*Cl_scalar(il,in,C_Cross)
@@ -1362,13 +1371,14 @@ contains
              TT = Cl_scalar(il, in, C_Temp)
              EE = Cl_scalar(il, in, C_E)
              TE = Cl_scalar(il, in, C_Cross)
+             !YG: add BB
+             BB = Cl_scalar(il, in, C_B)
              if (CP%WantTensors .and. il <= CP%Max_l_tensor) then
                 TT= TT+Cl_tensor(il,in, CT_Temp)
                 EE= EE+Cl_tensor(il,in, CT_E)
                 TE= TE+Cl_tensor(il,in, CT_Cross)
-                BB= Cl_tensor(il,in, CT_B)
-             else
-                BB=0
+                !YG: add scalar BB
+                BB= BB+Cl_tensor(il,in, CT_B)
              end if
              scale = (real(il+1)/il)**2/OutputDenominator !Factor to go from old l^4 factor to new
 
@@ -1424,7 +1434,8 @@ contains
     do in=1,CP%InitPower%nn
        if (CP%WantScalars) then
           Norm=1/Cl_scalar(lnorm,in, C_Temp)
-          Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) = Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_Cross) * Norm
+          ! YG: Changed range to C_Temp:C_last to include C_Phi, C_B, etc.
+          Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_last) = Cl_scalar(lmin:CP%Max_l, in, C_Temp:C_last) * Norm
        end if
 
        if (CP%WantTensors) then

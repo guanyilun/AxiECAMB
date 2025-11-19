@@ -863,11 +863,13 @@ contains
 
     if (CP%WantScalars) then
        if (WantLateTime) then
-          SourceNum=3
+          !YG: add extra source to include B-mode at index 3, lensing at index 4
+          SourceNum=4
           C_last = C_PhiE
           SourceNum=SourceNum + num_redshiftwindows + num_extra_redshiftwindows
        else
-          SourceNum=2
+          ! YG: Was 2, now 3 (T, E, B)
+          SourceNum=3
           C_last = C_Cross
        end if
     else
@@ -1411,8 +1413,8 @@ contains
              ascale = a0*scaling(tf_lo)+ b0*scaling(tf_hi)+&
                   ((a0**3-a0)* ddscaling(tf_lo) &
                   +(b0**3-b0)*ddscaling(tf_hi))*ho**2/6
-
-             Src(ik,3:SourceNum,i) = Src(ik,3:SourceNum,i) * ascale
+             !YG: Change 3:SourceNum to 4:SourceNum to skip B-mode (Source 3)  
+             Src(ik,4:SourceNum,i) = Src(ik,4:SourceNum,i) * ascale
           end  do
        end if
     end do
@@ -2038,16 +2040,17 @@ contains
              end do
           end if
        end if !DoInt
-       if (SourceNum==3 .and. (.not. DoInt .or. UseLimber(l,IV%q))) then
+       !YG: change from 3 to 4
+       if (SourceNum==4 .and. (.not. DoInt .or. UseLimber(l,IV%q))) then
           !Limber approximation for small scale lensing (better than poor version of above integral)
           xf = CP%tau0-invsinfunc((l+0.5_dl)/nu)*CP%r
           if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
              nbot=Ranges_IndexOf(TimeSteps,xf)
              xf= (xf-TimeSteps%points(nbot))/(TimeSteps%points(nbot+1)-TimeSteps%points(nbot))
-             sums(3) = (IV%Source_q(nbot,3)*(1-xf) + xf*IV%Source_q(nbot+1,3))*&
+             sums(4) = (IV%Source_q(nbot,4)*(1-xf) + xf*IV%Source_q(nbot+1,4))*&
                   sqrt(pi/2/(l+0.5_dl)/sqrt(1-CP%Ksign*real(l**2)/nu**2))/IV%q
           else
-             sums(3) = 0
+             sums(4) = 0
           end if
           !!write(*, *) 'sums(3)', sums(3)
        end if
@@ -2608,17 +2611,20 @@ contains
                          end do
                       end do
                    end if
-
-                   if (CTrans%NumSources>2 ) then
-                      if (limber_phiphi==0 .or.  CTrans%limber_l_min(3)== 0 .or. j<CTrans%limber_l_min(3)) then
+                   !YG: add index
+                   if (CTrans%NumSources>3 ) then
+                      if (limber_phiphi==0 .or.  CTrans%limber_l_min(4)== 0 .or. j<CTrans%limber_l_min(4)) then
                          iCl_scalar(j,C_Phi,pix) = iCl_scalar(j,C_Phi,pix) +  &
-                              apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk
+                              apowers*CTrans%Delta_p_l_k(4,j,q_ix)**2*dlnk
                          iCl_scalar(j,C_PhiTemp,pix) = iCl_scalar(j,C_PhiTemp,pix) +  &
-                              apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(1,j,q_ix)*dlnk
+                              apowers*CTrans%Delta_p_l_k(4,j,q_ix)*CTrans%Delta_p_l_k(1,j,q_ix)*dlnk
                          iCl_scalar(j,C_PhiE,pix) = iCl_scalar(j,C_PhiE,pix) +  &
-                              apowers*CTrans%Delta_p_l_k(3,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
+                              apowers*CTrans%Delta_p_l_k(4,j,q_ix)*CTrans%Delta_p_l_k(2,j,q_ix)*dlnk
                       end if
                    end if
+                   !YG: add B-mode
+                   iCl_scalar(j,C_B,pix) = iCl_scalar(j,C_B,pix) + &
+                                           apowers*CTrans%Delta_p_l_k(3,j,q_ix)**2*dlnk                   
                 end if
              end do
 
@@ -2631,7 +2637,8 @@ contains
           iCl_scalar(j,C_Temp,pix)  =  iCl_scalar(j,C_Temp,pix)*dbletmp
           iCl_scalar(j,C_E,pix)     =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
           iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
-          if (CTrans%NumSources>2) then
+          !YG: update NumSources limit from 2 to 3
+          if (CTrans%NumSources>3) then
              iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*fourpi*ell**4
              !The lensing power spectrum computed is l^4 C_l^{\phi\phi}
              !We put pix extra factors of l here to improve interpolation in CTrans%ls%l
