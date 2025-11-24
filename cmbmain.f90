@@ -1849,17 +1849,32 @@ contains
                 !!end if
              end do
           end if
-          if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
-             !Limber approximation for small scale lensing (better than poor version of above integral)
-             xf = CP%tau0-(lSamp%l(j)+0.5_dl)/IV%q
-             if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
-                n=Ranges_IndexOf(TimeSteps,xf)
-                xf= (xf-TimeSteps%points(n))/(TimeSteps%points(n+1)-TimeSteps%points(n))
-                sums(3) = (IV%Source_q(n,3)*(1-xf) + xf*IV%Source_q(n+1,3))*sqrt(pi/2/(lSamp%l(j)+0.5_dl))/IV%q
-             else
-                sums(3)=0
-             end if
-          end if
+          !YG: update lensing index from 3 to 4
+         !  if (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q) .and. CP%WantScalars) then
+         !     !Limber approximation for small scale lensing (better than poor version of above integral)
+         !     xf = CP%tau0-(lSamp%l(j)+0.5_dl)/IV%q
+         !     if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
+         !        n=Ranges_IndexOf(TimeSteps,xf)
+         !        xf= (xf-TimeSteps%points(n))/(TimeSteps%points(n+1)-TimeSteps%points(n))
+         !        sums(3) = (IV%Source_q(n,3)*(1-xf) + xf*IV%Source_q(n+1,3))*sqrt(pi/2/(lSamp%l(j)+0.5_dl))/IV%q
+         !     else
+         !        sums(3)=0
+         !     end if
+         !  end if
+          if (SourceNum > 3 .and. (.not. DoInt .or. UseLimber(lsamp%l(j),IV%q)) .and. CP%WantScalars) then
+            !Limber approximation for small scale lensing
+            xf = CP%tau0-(lSamp%l(j)+0.5_dl)/IV%q
+            if (xf < TimeSteps%Highest .and. xf > TimeSteps%Lowest) then
+               n=Ranges_IndexOf(TimeSteps,xf)
+               xf= (xf-TimeSteps%points(n))/(TimeSteps%points(n+1)-TimeSteps%points(n))
+      
+               ! CHANGE: Use index 4 for Lensing
+               sums(4) = (IV%Source_q(n,4)*(1-xf) + xf*IV%Source_q(n+1,4))* &
+                  sqrt(pi/2/(lSamp%l(j)+0.5_dl))/IV%q
+            else
+               sums(4)=0
+            end if
+         end if
        end if
 
        !RL 090623 adding the boundary conditions at the switch if applicable
