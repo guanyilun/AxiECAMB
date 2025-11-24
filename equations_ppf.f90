@@ -2231,14 +2231,13 @@ contains
           end if
           
           ! 3. Calculate rotation angle beta = (g/2) * Delta_phi
-          rot_angle = 0.5_dl * CP%g_axion * (phi_today - phi_now)
+          rot_angle = (sqrt(6.0_dl)/2.0_dl) * CP%g_axion * (phi_today - phi_now) 
           
           ! 4. Apply Rotation
           ! E' = E cos(2b)
           ! B' = E sin(2b) (Assuming intrinsic B=0)
           sources(2) = source_E_original * cos(2.0_dl * rot_angle)
           sources(3) = source_E_original * sin(2.0_dl * rot_angle)
-          
        else
           ! --- FAST REGIME (ETA/WKB) ---
           ! Field is oscillating rapidly. 
@@ -2258,7 +2257,13 @@ contains
           ! 2. Calculate Bessel Argument (g * Phi)
           ! Note: Rotation angle amplitude is (g/2)*Phi, but phase factor is exp(i*g*phi),
           ! so the averaging yields J0(g*Phi)
-          J0_arg = CP%g_axion * Phi_envelope_now
+          J0_arg = sqrt(6.0_dl) * CP%g_axion * Phi_envelope_now
+          
+          if (abs(J0_arg) < 1.0d4) then
+              J0_factor = BESSEL_J0(J0_arg)
+          else
+              J0_factor = 0._dl
+          endif
           
           ! 3. Apply Suppression
           ! E-modes are suppressed by coherence damping

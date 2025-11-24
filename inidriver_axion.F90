@@ -151,7 +151,7 @@ program driver
   end if
 
   !!P%dfac = Ini_Read_Double('movH_switch') !RL 092623 switch time
-  P%dfac = 10._dl !RL 121924 making movH internal
+  P%dfac = 20._dl !RL 121924 making movH internal
   ntable = nint(P%dfac*100) + 1 !RL 111123
 
   P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)

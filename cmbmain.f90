@@ -2640,6 +2640,11 @@ contains
           iCl_scalar(j,C_Temp,pix)  =  iCl_scalar(j,C_Temp,pix)*dbletmp
           iCl_scalar(j,C_E,pix)     =  iCl_scalar(j,C_E,pix)*dbletmp*ctnorm
           iCl_scalar(j,C_Cross,pix) =  iCl_scalar(j,C_Cross,pix)*dbletmp*sqrt(ctnorm)
+
+          !YG: add scaling for EB and B
+          iCl_scalar(j,C_B,pix)      =  iCl_scalar(j,C_B,pix)*dbletmp*ctnorm
+          iCl_scalar(j,C_EB,pix)     =  iCl_scalar(j,C_EB,pix)*dbletmp*ctnorm
+
           !YG: update NumSources limit from 2 to 3
           if (CTrans%NumSources>3) then
              iCl_scalar(j,C_Phi,pix) = ALens*iCl_scalar(j,C_Phi,pix)*fourpi*ell**4
