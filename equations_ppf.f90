@@ -229,12 +229,31 @@ end module LambdaGeneral
 subroutine init_background
   use LambdaGeneral
   use ModelParams !RL
-  integer :: i_check
+  logical :: file_is_open
+  character(LEN=1024) :: aniso_filename
   !This is only called once per model, and is a good point to do any extra initialization.
   !It is called before first call to dtauda, but after massive neutrinos are initialized and after GetOmegak
   is_cosmological_constant = .not. use_tabulated_w .and. w_lam==-1_dl .and. wa_ppf==0._dl
   
   CP%tau0=TimeOfz(0._dl) !RL 061924 moved tau0 here so to initialte tau_osc
+
+  ! YG: temporary save transfer
+  ! Check if unit is already open from a previous run (e.g. Adiabatic run before Isocurvature)
+  inquire(unit=88, opened=file_is_open)
+  if (file_is_open) close(88)
+
+  ! Determine Filename based on Initial Condition
+  ! CP%Scalar_initial_condition: 1=Adiabatic, 6=Axion Isocurvature
+  if (CP%Scalar_initial_condition == 1) then
+      aniso_filename = 'aniso_source_k_tau_adi.dat'
+  else if (CP%Scalar_initial_condition == 6) then
+      aniso_filename = 'aniso_source_k_tau_iso.dat'
+  else
+      ! Fallback for other modes (CDM iso, baryon iso, etc)
+      write(aniso_filename, '("aniso_source_k_tau_mode",I0,".dat")') CP%Scalar_initial_condition
+  endif
+
+  open(unit=88, file=trim(aniso_filename), status='replace', action='write')
 
   if (CP%a_osc .gt. 1._dl) then
      CP%tau_osc=CP%tau0 + 1._dl !To make sure no switch happens before the present day. 
@@ -1893,7 +1912,7 @@ contains
     ! YG: Birefringence Variables
     real(dl) :: phi_now, phi_today, rot_angle
     real(dl) :: Phi_envelope_now, J0_arg, J0_factor
-    real(dl) :: source_E_original
+    real(dl) :: source_E_original, delta_phi_phys
     intrinsic :: BESSEL_J0 
 
     H0_in_Mpc_inv = dble(CP%H0)/dble(c/1.0d3) !RL
@@ -2211,7 +2230,7 @@ contains
        source_E_original = vis(j)*polter*(15._dl/8._dl)/divfac
        
        ! YG: Birefringence Implementation
-       
+
        if (.not. EV%oscillation_started) then
           ! --- SLOW REGIME (KG Equation) ---
           ! Field is evolving slowly, calculate exact rotation beta
@@ -2238,6 +2257,16 @@ contains
           ! B' = E sin(2b) (Assuming intrinsic B=0)
           sources(2) = source_E_original * cos(2.0_dl * rot_angle)
           sources(3) = source_E_original * sin(2.0_dl * rot_angle)
+
+          ! save transfer for future use
+          ! Columns: k, tau, Source_E_Intrinsic, Delta_Phi_Physical
+          ! We only write if k is non-zero to avoid headers/initialization noise
+          delta_phi_phys = y(EV%a_kg_ix) * EV%renorm_c
+          if (EV%k_buf > 1.e-5_dl) then
+             !$omp critical (aniso_write)
+             write(88, '(4E16.8)') EV%k_buf, tau, source_E_original, delta_phi_phys
+             !$omp end critical (aniso_write)
+          endif
        else
           ! --- FAST REGIME (ETA/WKB) ---
           ! Field is oscillating rapidly. 
