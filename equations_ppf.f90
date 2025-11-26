@@ -30,6 +30,9 @@ module LambdaGeneral
   real(dl) :: cs2_lam = 1_dl
   !cs2_lam now is ce^2
 
+  !YG: to store anisotropic transfer output
+  character(LEN=1024) :: aniso_outroot = ''
+
   logical :: use_tabulated_w = .false.
   real(dl) :: wa_ppf = 0._dl
   real(dl) :: c_Gamma_ppf = 0.4_dl
@@ -252,8 +255,9 @@ subroutine init_background
       ! Fallback for other modes (CDM iso, baryon iso, etc)
       write(aniso_filename, '("aniso_source_k_tau_mode",I0,".dat")') CP%Scalar_initial_condition
   endif
+  aniso_filename = trim(aniso_outroot) // trim(aniso_filename)
 
-  open(unit=88, file=trim(aniso_filename), status='replace', action='write')
+  open(unit=88, file=aniso_filename, status='replace', action='write')
 
   if (CP%a_osc .gt. 1._dl) then
      CP%tau_osc=CP%tau0 + 1._dl !To make sure no switch happens before the present day. 
