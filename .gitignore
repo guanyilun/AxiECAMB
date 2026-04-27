@@ -2,3 +2,5 @@
 *.o
 camb
 *.dat
+tmp/
+*.err
