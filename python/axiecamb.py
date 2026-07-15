@@ -402,10 +402,19 @@ class AxiECAMB(BoltzmannBase):
     def _dl_to_cl(col, lmax_out, ell_power=1.0):
         n = lmax_out - 1
         if len(col) < n:
-            raise ValueError(
-                f"output only reaches l={len(col) + 1} but l={lmax_out} was "
-                "requested; increase the 'lmax_margin' option"
-            )
+            # AxiECAMB hard-caps CMB output near l~8250 (its high-l template
+            # ends at l=8000), independent of l_max_scalar/lmax_margin. Callers
+            # can legitimately request a higher lmax (e.g. ACT DR6 bandpower
+            # windows index the theory to l=8501). The Cl beyond the cap is deep
+            # damping tail (~1e-16 of peak) where the data windows carry
+            # negligible weight, so pad it with zeros rather than failing. Guard
+            # against a genuinely absurd request (misconfiguration).
+            if n - len(col) > 2000:
+                raise ValueError(
+                    f"output only reaches l={len(col) + 1} but l={lmax_out} was "
+                    "requested (gap > 2000); check the likelihood's lmax."
+                )
+            col = np.concatenate([col, np.zeros(n - len(col))])
         ls = np.arange(2, lmax_out + 1, dtype=float)
         cl = np.zeros(lmax_out + 1)
         cl[2:] = col[:n] * 2 * np.pi / (ls * (ls + 1.0)) ** ell_power
