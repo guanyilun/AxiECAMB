@@ -32,6 +32,7 @@ module LambdaGeneral
 
   !YG: to store anisotropic transfer output
   character(LEN=1024) :: aniso_outroot = ''
+  logical :: write_aniso_transfer = .true.
 
   logical :: use_tabulated_w = .false.
   real(dl) :: wa_ppf = 0._dl
@@ -245,19 +246,21 @@ subroutine init_background
   inquire(unit=88, opened=file_is_open)
   if (file_is_open) close(88)
 
-  ! Determine Filename based on Initial Condition
-  ! CP%Scalar_initial_condition: 1=Adiabatic, 6=Axion Isocurvature
-  if (CP%Scalar_initial_condition == 1) then
-      aniso_filename = 'aniso_source_k_tau_adi.dat'
-  else if (CP%Scalar_initial_condition == 6) then
-      aniso_filename = 'aniso_source_k_tau_iso.dat'
-  else
-      ! Fallback for other modes (CDM iso, baryon iso, etc)
-      write(aniso_filename, '("aniso_source_k_tau_mode",I0,".dat")') CP%Scalar_initial_condition
-  endif
-  aniso_filename = trim(aniso_outroot) // trim(aniso_filename)
+  if (write_aniso_transfer) then
+     ! Determine Filename based on Initial Condition
+     ! CP%Scalar_initial_condition: 1=Adiabatic, 6=Axion Isocurvature
+     if (CP%Scalar_initial_condition == 1) then
+        aniso_filename = 'aniso_source_k_tau_adi.dat'
+     else if (CP%Scalar_initial_condition == 6) then
+        aniso_filename = 'aniso_source_k_tau_iso.dat'
+     else
+        ! Fallback for other modes (CDM iso, baryon iso, etc)
+        write(aniso_filename, '("aniso_source_k_tau_mode",I0,".dat")') CP%Scalar_initial_condition
+     endif
+     aniso_filename = trim(aniso_outroot) // trim(aniso_filename)
 
-  open(unit=88, file=aniso_filename, status='replace', action='write')
+     open(unit=88, file=aniso_filename, status='replace', action='write')
+  end if
 
   if (CP%a_osc .gt. 1._dl) then
      CP%tau_osc=CP%tau0 + 1._dl !To make sure no switch happens before the present day. 
@@ -2266,7 +2269,7 @@ contains
           ! Columns: k, tau, Source_E_Intrinsic, Delta_Phi_Physical
           ! We only write if k is non-zero to avoid headers/initialization noise
           delta_phi_phys = y(EV%a_kg_ix) * EV%renorm_c
-          if (EV%k_buf > 1.e-5_dl) then
+          if (write_aniso_transfer .and. EV%k_buf > 1.e-5_dl) then
              !$omp critical (aniso_write)
              write(88, '(4E16.8)') EV%k_buf, tau, source_E_original, delta_phi_phys
              !$omp end critical (aniso_write)

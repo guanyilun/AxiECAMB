@@ -76,6 +76,7 @@ program driver
   outroot = Ini_Read_String('output_root')
   if (outroot /= '') outroot = trim(outroot) // '_'
   aniso_outroot = outroot
+  write_aniso_transfer = Ini_Read_Logical('write_aniso_transfer', .true.)
 
   highL_unlensed_cl_template = Ini_Read_String_Default('highL_unlensed_cl_template',highL_unlensed_cl_template)
 
