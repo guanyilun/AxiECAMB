@@ -170,6 +170,8 @@ class AxiECAMB(BoltzmannBase):
     run_dir = None
     extra_args = {}
     speed = 0.8
+    # None leaves the ini keys to extra_args; "adi" | "both" (adi+iso) | "iso"
+    isocurvature = None
 
     def initialize(self):
         super().initialize()
@@ -213,6 +215,22 @@ class AxiECAMB(BoltzmannBase):
                 "option(s) ('use_axfrac', 'lensing', 'accurate_bb') instead.",
                 sorted(shadowed),
             )
+        if self.isocurvature is not None:
+            if self.isocurvature not in ("adi", "both", "iso"):
+                raise LoggedError(
+                    self.log,
+                    "isocurvature must be 'adi', 'both', or 'iso'; got %r.",
+                    self.isocurvature,
+                )
+            if iso_shadow := {"axion_isocurvature", "initial_condition"} & set(
+                self.extra_args
+            ):
+                raise LoggedError(
+                    self.log,
+                    "Set the isocurvature mode either with the 'isocurvature' "
+                    "option or with extra_args %s, not both.",
+                    sorted(iso_shadow),
+                )
 
     def _rundir(self):
         # callers may fork worker processes after initialize(), so resolve the
@@ -303,6 +321,10 @@ class AxiECAMB(BoltzmannBase):
             ini["lensed_output_file"] = ""
             ini["lens_potential_output_file"] = ""
         ini.update(self.extra_args)
+        if self.isocurvature is not None:
+            ini["axion_isocurvature"], ini["initial_condition"] = {
+                "adi": (False, 1), "both": (True, 1), "iso": (False, 6),
+            }[self.isocurvature]
         lmax_calc = max(self._lmax_request + self.lmax_margin, 1000)
         ini["l_max_scalar"] = max(int(ini["l_max_scalar"]), lmax_calc)
         ini["k_eta_max_scalar"] = max(
