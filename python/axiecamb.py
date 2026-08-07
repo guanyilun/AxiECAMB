@@ -192,13 +192,12 @@ class AxiECAMB(BoltzmannBase):
             raise LoggedError(
                 self.log, "Missing template file %s", self._highl_template
             )
+        self._rootpid = os.getpid()
         if self.run_dir:
             os.makedirs(self.run_dir, exist_ok=True)
-            self._tmpdir = self.run_dir
-            self._tmpdir_is_temp = False
+            self._rootdir = self.run_dir
         else:
-            self._tmpdir = tempfile.mkdtemp(prefix="axiecamb_")
-            self._tmpdir_is_temp = True
+            self._rootdir = tempfile.mkdtemp(prefix="axiecamb_")
         self._lmax_request = 0
         self._t_cmb = float(
             self.extra_args.get("temp_cmb", _BASE_INI["temp_cmb"])
@@ -215,9 +214,16 @@ class AxiECAMB(BoltzmannBase):
                 sorted(shadowed),
             )
 
+    def _rundir(self):
+        # callers may fork worker processes after initialize(), so resolve the
+        # directory per process rather than sharing one
+        path = os.path.join(self._rootdir, "pid%d" % os.getpid())
+        os.makedirs(path, exist_ok=True)
+        return path
+
     def close(self, *args):
-        if getattr(self, "_tmpdir_is_temp", False):
-            shutil.rmtree(self._tmpdir, ignore_errors=True)
+        if not self.run_dir and os.getpid() == self._rootpid:
+            shutil.rmtree(self._rootdir, ignore_errors=True)
 
     def initialize_with_params(self):
         super().initialize_with_params()
@@ -302,7 +308,8 @@ class AxiECAMB(BoltzmannBase):
         ini["k_eta_max_scalar"] = max(
             int(ini["k_eta_max_scalar"]), 2 * ini["l_max_scalar"]
         )
-        ini["output_root"] = os.path.join(self._tmpdir, "ax")
+        rundir = self._rundir()
+        ini["output_root"] = os.path.join(rundir, "ax")
         ini["highL_unlensed_cl_template"] = self._highl_template
 
         for p, v in params_values_dict.items():
@@ -325,14 +332,14 @@ class AxiECAMB(BoltzmannBase):
         for f in glob.glob(ini["output_root"] + "_*"):
             os.remove(f)
 
-        ini_path = os.path.join(self._tmpdir, "params.ini")
+        ini_path = os.path.join(rundir, "params.ini")
         with open(ini_path, "w") as f:
             f.writelines(f"{k} = {_ini_value(v)}\n" for k, v in ini.items())
 
         try:
             proc = subprocess.run(
                 [self._exe, ini_path],
-                cwd=self._tmpdir,
+                cwd=rundir,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
