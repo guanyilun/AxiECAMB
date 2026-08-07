@@ -2,4 +2,6 @@
 *.o
 camb
 *.dat
+tmp/
+*.err
 __pycache__/

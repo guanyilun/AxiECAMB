@@ -170,6 +170,8 @@ class AxiECAMB(BoltzmannBase):
     run_dir = None
     extra_args = {}
     speed = 0.8
+    # None leaves the ini keys to extra_args; "adi" | "both" (adi+iso) | "iso"
+    isocurvature = None
 
     def initialize(self):
         super().initialize()
@@ -192,13 +194,12 @@ class AxiECAMB(BoltzmannBase):
             raise LoggedError(
                 self.log, "Missing template file %s", self._highl_template
             )
+        self._rootpid = os.getpid()
         if self.run_dir:
             os.makedirs(self.run_dir, exist_ok=True)
-            self._tmpdir = self.run_dir
-            self._tmpdir_is_temp = False
+            self._rootdir = self.run_dir
         else:
-            self._tmpdir = tempfile.mkdtemp(prefix="axiecamb_")
-            self._tmpdir_is_temp = True
+            self._rootdir = tempfile.mkdtemp(prefix="axiecamb_")
         self._lmax_request = 0
         self._t_cmb = float(
             self.extra_args.get("temp_cmb", _BASE_INI["temp_cmb"])
@@ -214,10 +215,32 @@ class AxiECAMB(BoltzmannBase):
                 "option(s) ('use_axfrac', 'lensing', 'accurate_bb') instead.",
                 sorted(shadowed),
             )
+        if self.isocurvature is not None:
+            if self.isocurvature not in ("adi", "both", "iso"):
+                raise LoggedError(
+                    self.log,
+                    "isocurvature must be 'adi', 'both', or 'iso'; got %r.",
+                    self.isocurvature,
+                )
+            if iso_shadow := {"axion_isocurvature", "initial_condition"} & set(
+                self.extra_args
+            ):
+                raise LoggedError(
+                    self.log,
+                    "Set the isocurvature mode either with the 'isocurvature' "
+                    "option or with extra_args %s, not both.",
+                    sorted(iso_shadow),
+                )
+
+    def _rundir(self):
+        # callers may fork after initialize(), so resolve per process
+        path = os.path.join(self._rootdir, "pid%d" % os.getpid())
+        os.makedirs(path, exist_ok=True)
+        return path
 
     def close(self, *args):
-        if getattr(self, "_tmpdir_is_temp", False):
-            shutil.rmtree(self._tmpdir, ignore_errors=True)
+        if not self.run_dir and os.getpid() == self._rootpid:
+            shutil.rmtree(self._rootdir, ignore_errors=True)
 
     def initialize_with_params(self):
         super().initialize_with_params()
@@ -297,12 +320,17 @@ class AxiECAMB(BoltzmannBase):
             ini["lensed_output_file"] = ""
             ini["lens_potential_output_file"] = ""
         ini.update(self.extra_args)
+        if self.isocurvature is not None:
+            ini["axion_isocurvature"], ini["initial_condition"] = {
+                "adi": (False, 1), "both": (True, 1), "iso": (False, 6),
+            }[self.isocurvature]
         lmax_calc = max(self._lmax_request + self.lmax_margin, 1000)
         ini["l_max_scalar"] = max(int(ini["l_max_scalar"]), lmax_calc)
         ini["k_eta_max_scalar"] = max(
             int(ini["k_eta_max_scalar"]), 2 * ini["l_max_scalar"]
         )
-        ini["output_root"] = os.path.join(self._tmpdir, "ax")
+        rundir = self._rundir()
+        ini["output_root"] = os.path.join(rundir, "ax")
         ini["highL_unlensed_cl_template"] = self._highl_template
 
         for p, v in params_values_dict.items():
@@ -325,14 +353,14 @@ class AxiECAMB(BoltzmannBase):
         for f in glob.glob(ini["output_root"] + "_*"):
             os.remove(f)
 
-        ini_path = os.path.join(self._tmpdir, "params.ini")
+        ini_path = os.path.join(rundir, "params.ini")
         with open(ini_path, "w") as f:
             f.writelines(f"{k} = {_ini_value(v)}\n" for k, v in ini.items())
 
         try:
             proc = subprocess.run(
                 [self._exe, ini_path],
-                cwd=self._tmpdir,
+                cwd=rundir,
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
@@ -402,10 +430,14 @@ class AxiECAMB(BoltzmannBase):
     def _dl_to_cl(col, lmax_out, ell_power=1.0):
         n = lmax_out - 1
         if len(col) < n:
-            raise ValueError(
-                f"output only reaches l={len(col) + 1} but l={lmax_out} was "
-                "requested; increase the 'lmax_margin' option"
-            )
+            # output is capped near l~8250 regardless of l_max_scalar; beyond
+            # that is negligible damping tail, so pad rather than fail
+            if n - len(col) > 2000:
+                raise ValueError(
+                    f"output only reaches l={len(col) + 1} but l={lmax_out} was "
+                    "requested (gap > 2000); check the likelihood's lmax."
+                )
+            col = np.concatenate([col, np.zeros(n - len(col))])
         ls = np.arange(2, lmax_out + 1, dtype=float)
         cl = np.zeros(lmax_out + 1)
         cl[2:] = col[:n] * 2 * np.pi / (ls * (ls + 1.0)) ** ell_power
