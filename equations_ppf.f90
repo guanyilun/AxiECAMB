@@ -2652,7 +2652,7 @@ contains
     a2=a*a
     adotoa = 1.0_dl/(a*dtauda(a))!1.0_dl/(tau*(1+omtau/4)) !RL added, which is just adotrad/a - updated to using dtauda
     call spline_out(loga_table,phinorm_table,phinorm_table_ddlga,ntable,dlog10(a),v1_bg)
-    call spline_out(loga_table,phidotnorm_table,phidotnorm_table_ddlga,ntable,dlog10(a),v2_bg) !YG: background field velocity phi' for the iso delta_phi' IC
+    call spline_out(loga_table,phidotnorm_table,phidotnorm_table_ddlga,ntable,dlog10(a),v2_bg) !YG: background phi' for the iso IC
     !write(*, *) 'Rayne, is the spline in IC successful?', v1_bg
     initv=0
 
@@ -2787,7 +2787,7 @@ contains
 
 
        initv(6, i_dphi_ax) = 0.5_dl * v1_bg * initv(6, i_clxax)
-       initv(6, i_dphidot_ax) = 0.5_dl * v2_bg * initv(6, i_clxax)  !YG co-rolling fix: delta_phi' = (1/2) phi' delta_a. Reproduces delta_a exactly via the derivs field->fluid map; verified numerically (consistency ratio dphi_mom/dphi_den = 1.0000000 across all k; adi source unchanged; iso source change grows with m_ax, negligible for light axions where tau_i is deep frozen). Was 0.0_dl.
+       initv(6, i_dphidot_ax) = 0.5_dl * v2_bg * initv(6, i_clxax)  !YG co-rolling IC: delta_phi' = (1/2) phi' delta_a
 
        ! Normalisation of *gamma* perturbation
        AA=Ra*(omr**4.0d0)*(FF**4.0d0)
