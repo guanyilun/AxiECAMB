@@ -222,7 +222,9 @@ class AxiECAMB(BoltzmannBase):
                     "isocurvature must be 'adi', 'both', or 'iso'; got %r.",
                     self.isocurvature,
                 )
-            if iso_shadow := {"axion_isocurvature", "initial_condition"} & set(
+            if iso_shadow := {
+                "axion_isocurvature", "axion_iso_only", "initial_condition"
+            } & set(
                 self.extra_args
             ):
                 raise LoggedError(
@@ -321,9 +323,12 @@ class AxiECAMB(BoltzmannBase):
             ini["lens_potential_output_file"] = ""
         ini.update(self.extra_args)
         if self.isocurvature is not None:
-            ini["axion_isocurvature"], ini["initial_condition"] = {
-                "adi": (False, 1), "both": (True, 1), "iso": (False, 6),
+            # mode 6 is selected inside the driver; setting initial_condition = 6
+            # directly would use A_s, n_s instead of the Hinf-derived amplitude
+            ini["axion_isocurvature"], ini["axion_iso_only"] = {
+                "adi": (False, False), "both": (True, False), "iso": (True, True),
             }[self.isocurvature]
+            ini["initial_condition"] = 1
         lmax_calc = max(self._lmax_request + self.lmax_margin, 1000)
         ini["l_max_scalar"] = max(int(ini["l_max_scalar"]), lmax_calc)
         ini["k_eta_max_scalar"] = max(

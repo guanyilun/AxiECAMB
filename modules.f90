@@ -1786,6 +1786,11 @@ module Transfer
 
   Type (MatterTransferData), save :: MT
 
+  !YG: combined adi+iso P(k). Transfer_SaveMatterPower stores the power it writes when
+  !mode = 1 and adds the stored power before writing when mode = 2 (uncorrelated modes)
+  integer :: matterpower_stash_mode = 0
+  real, allocatable :: matterpower_stash(:,:,:)
+
   interface Transfer_GetMatterPower
      module procedure Transfer_GetMatterPowerD,Transfer_GetMatterPowerS
   end interface Transfer_GetMatterPower
@@ -2314,6 +2319,7 @@ contains
                 call MatterPowerdata_Free(PK_Data)
              end do
 
+             call MatterPower_ApplyStash(outpower, itf)
              open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
              do i=1,points
                 write (fileio_unit, fmt) MTrans%TransferData(Transfer_kh,i,1),outpower(i,1:CP%InitPower%nn,:)
@@ -2329,6 +2335,7 @@ contains
                 call Transfer_GetMatterPowerS(MTrans,outpower(1,in,1), itf, in, minkh,dlnkh, points)
              end do
 
+             call MatterPower_ApplyStash(outpower, itf)
              open(unit=fileio_unit,file=FileNames(itf),form='formatted',status='replace')
              do i=1,points
                 write (fileio_unit, fmt) minkh*exp((i-1)*dlnkh),outpower(i,1:CP%InitPower%nn,1)
@@ -2341,6 +2348,25 @@ contains
     end do
 
   end subroutine Transfer_SaveMatterPower
+
+  subroutine MatterPower_ApplyStash(outpower, itf)
+    real, intent(inout) :: outpower(:,:,:)
+    integer, intent(in) :: itf
+
+    if (matterpower_stash_mode == 1) then
+       if (.not. allocated(matterpower_stash)) then
+          allocate(matterpower_stash(size(outpower,1), size(outpower,2), CP%Transfer%PK_num_redshifts))
+          matterpower_stash = 0
+       end if
+       if (size(matterpower_stash,1) /= size(outpower,1)) stop 'MatterPower_ApplyStash: k grid changed'
+       matterpower_stash(:,:,itf) = outpower(:,:,1)
+    else if (matterpower_stash_mode == 2) then
+       if (.not. allocated(matterpower_stash)) stop 'MatterPower_ApplyStash: nothing stored'
+       if (size(matterpower_stash,1) /= size(outpower,1)) stop 'MatterPower_ApplyStash: k grid changed'
+       outpower(:,:,1) = outpower(:,:,1) + matterpower_stash(:,:,itf)
+    end if
+
+  end subroutine MatterPower_ApplyStash
 
   !JD 08/13 New function for nonlinear lensing of CMB + MPK compatibility
   !Build master redshift array from array of desired Nonlinear lensing (NLL)

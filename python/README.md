@@ -47,8 +47,8 @@ Cosmological: `ombh2`, `omnuh2`, `omk`, `H0`, `tau`, `As`, `ns`, `nrun`,
 
 Axion sector: `m_ax` (eV) or `log10_m_ax`, `g_axion` (= g_agamma * M_pl),
 and depending on the `use_axfrac` option either (`omdah2`, `axfrac`) or
-(`omch2`, `omaxh2`). Isocurvature: `Hinf` (with `axion_isocurvature: T` in
-`extra_args`; the amplitude `alpha_ax` is derived internally, not an input).
+(`omch2`, `omaxh2`). Isocurvature: `Hinf`, with the `isocurvature` option below
+(the amplitude is derived internally from `Hinf` and the initial field value).
 
 Anything else in `params.ini` can be fixed through `extra_args` (raw ini keys),
 e.g. `extra_args: {accuracy_boost: 1.5, massless_neutrinos: 2.046}`.
@@ -65,7 +65,8 @@ e.g. `extra_args: {accuracy_boost: 1.5, massless_neutrinos: 2.046}`.
 | `num_threads` | `0` | OpenMP threads per evaluation (0 = all cores) |
 | `timeout` | `600` | seconds before an evaluation is declared failed |
 | `run_dir` | none | keep run files here instead of a temp dir (debugging) |
-| `extra_args` | `{}` | raw `params.ini` overrides |
+| `isocurvature` | none | `adi`, `both` (adiabatic + axion isocurvature, lensed together) or `iso` (isocurvature only); none leaves it to `extra_args` |
+| `extra_args` | `{}` | raw `params.ini` overrides (e.g. `movH_switch`) |
 
 Failed or timed-out evaluations are reported to cobaya as invalid points
 (rejected by the sampler) rather than crashing the chain.
