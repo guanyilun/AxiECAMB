@@ -1837,6 +1837,9 @@ contains
                 sums(1) = sums(1) + IV%Source_q(n,1)*J_l
                 sums(2) = sums(2) + IV%Source_q(n,2)*J_l
                 sums(3) = sums(3) + IV%Source_q(n,3)*J_l
+                !YG: lensing moved from source 3 to 4, so integrate it here too (otherwise
+                !phi is zero wherever Limber is not used)
+                if (SourceNum > 3) sums(4) = sums(4) + IV%Source_q(n,4)*J_l
 !!!if (IV%q_ix .eq. 1 .and. j .eq. 1) then
                 !!   write(*, *) 'Rayne, output IV%q_ix, IV%q, lSamp%l(j), J_l', IV%q_ix, IV%q,lSamp%l(j), J_l
 !!!write(010423, '(36E52.42E3)') TimeSteps%points(n), TimeSteps%dpoints(n), J_l, IV%Source_q(n, 1), sums(1), vis(n), dvis(n), ddvis(n)
