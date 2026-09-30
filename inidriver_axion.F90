@@ -347,6 +347,16 @@ program driver
      P%omegaax = Ini_Read_Double('omega_axion')/(P%H0/100)**2
      P%ma     = Ini_Read_Double('m_ax')  
      P%g_axion = Ini_Read_Double('g_axion', 0.0_dl)  ! YG: g_a\gm M_pl
+     !YG: as in the use_physical branch; m_ovH0 was left unset here
+     if (P%ma < 0) P%ma = 10**P%ma
+     P%m_ovH0 = P%ma/P%H0_eV
+     P%use_axfrac = .false.
+     if (P%m_ovH0 .ge. 10._dl) then
+        P%axfrac = P%omegaax/(P%omegac+P%omegaax)
+     else
+        P%axfrac = P%omegaax/(1.0d0-P%omegab-P%omegac-P%omegan-P%omegak &
+             -P%omegah2_rad/((P%H0/1.d2)**2.0d0))
+     end if
 
   end if
 

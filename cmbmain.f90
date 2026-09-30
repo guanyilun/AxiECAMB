@@ -816,7 +816,9 @@ contains
 
 
        !old working start time for other modes
-       taustart=min(taustart,tauosc,taueq, 0.3_dl*CP%tau_osc) !RL added CP%tau_osc as a constraint (the 0.001 prefactors in the times are subject to test and change)
+       !YG: /sqrt(dfac) keeps m/H <~ 0.09 at the start (m/H ~ tau^2 in RD, = dfac at tau_osc), as
+       !the non-axion iso ICs and the adiabatic KG ICs are leading order in m/H (as in upstream)
+       taustart=min(taustart,tauosc,taueq, 0.3_dl*CP%tau_osc/sqrt(CP%dfac)) !RL added CP%tau_osc as a constraint (the 0.001 prefactors in the times are subject to test and change)
     end if
 
     GetTauStart=taustart
