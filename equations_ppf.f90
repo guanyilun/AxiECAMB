@@ -2304,7 +2304,6 @@ contains
           ! 3. Apply Suppression
           ! E-modes are suppressed by coherence damping
           ! B-modes average to zero in the fast oscillation limit
-          J0_factor = BESSEL_J0(J0_arg)
           
           sources(2) = source_E_original * J0_factor
           sources(3) = 0._dl

@@ -57,6 +57,13 @@ program driver
   !Control Flag
   integer badflag
   real(dl), allocatable :: RHCl_temp(:,:,:), RHCl_temp_lensed(:,:,:), RHCl_temp_tensor(:,:,:) !RL 111523 moving the RHCl_temp arrays here (might change later) to eliminate the stack overflow problem
+  !YG: adi+iso bookkeeping. axion_iso_only skips the adiabatic run; otherwise the two
+  !runs are combined here (unlensed Cls summed then lensed once, P(k) summed, sigma8 in quadrature)
+  logical :: axion_iso_only = .false., spline_template_user
+  real(dl), allocatable :: sigma8_adi(:,:)
+  character(LEN=Ini_max_string_len) AdiTransferFileNames(max_transfer_redshifts), &
+       IsoTransferFileNames(max_transfer_redshifts), AdiMatterPowerFileNames(max_transfer_redshifts), &
+       IsoMatterPowerFileNames(max_transfer_redshifts)
   !!call cpu_time(clock_totstart) ! RH timing
 
   real(dl) twobeta_tgt, beta_coeff, y_phase, movHETA_beta, movHETA_new
@@ -153,7 +160,9 @@ program driver
   end if
 
   !!P%dfac = Ini_Read_Double('movH_switch') !RL 092623 switch time
-  P%dfac = 20._dl !RL 121924 making movH internal
+  !YG: m/H at the KG->EFA switch, now an ini key (upstream uses the same name, default 10 there)
+  P%dfac = Ini_Read_Double('movH_switch', 20._dl)
+  if (P%dfac < 10._dl) stop 'movH_switch below 10 is not supported'
   ntable = nint(P%dfac*100) + 1 !RL 111123
 
   P%tcmb   = Ini_Read_Double('temp_cmb',COBE_CMBTemp)
@@ -320,6 +329,8 @@ program driver
      P%Hinf = (10**P%Hinf)/mplanck ! computing the ratio of Hinflation to Mplanck
      !       print*, 'This is Hinflation renee', P%Hinf
      P%axion_isocurvature = Ini_Read_Logical('axion_isocurvature', .true.)
+     !YG: iso-only run (no adiabatic run, no summing); only meaningful with axion_isocurvature
+     axion_iso_only = P%axion_isocurvature .and. Ini_Read_Logical('axion_iso_only', .false.)
      !YG 111525 re-enable isocurvature
      !RL 121924 disable isocurvature
      ! if (P%axion_isocurvature .eqv. .true.) then
@@ -336,6 +347,16 @@ program driver
      P%omegaax = Ini_Read_Double('omega_axion')/(P%H0/100)**2
      P%ma     = Ini_Read_Double('m_ax')  
      P%g_axion = Ini_Read_Double('g_axion', 0.0_dl)  ! YG: g_a\gm M_pl
+     !YG: as in the use_physical branch; m_ovH0 was left unset here
+     if (P%ma < 0) P%ma = 10**P%ma
+     P%m_ovH0 = P%ma/P%H0_eV
+     P%use_axfrac = .false.
+     if (P%m_ovH0 .ge. 10._dl) then
+        P%axfrac = P%omegaax/(P%omegac+P%omegaax)
+     else
+        P%axfrac = P%omegaax/(1.0d0-P%omegab-P%omegac-P%omegan-P%omegak &
+             -P%omegah2_rad/((P%H0/1.d2)**2.0d0))
+     end if
 
   end if
 
@@ -371,6 +392,11 @@ program driver
         if (MatterPowerFilenames(i) == '') then
            MatterPowerFilenames(i) =  trim(numcat('matterpower_',i))//'.dat'
         end if
+        !YG: per-mode files for combined adi+iso runs
+        AdiTransferFileNames(i) = trim(outroot)//'adi_'//TransferFileNames(i)
+        IsoTransferFileNames(i) = trim(outroot)//'iso_'//TransferFileNames(i)
+        AdiMatterPowerFileNames(i) = trim(outroot)//'adi_'//MatterPowerFilenames(i)
+        IsoMatterPowerFileNames(i) = trim(outroot)//'iso_'//MatterPowerFilenames(i)
         if (TransferFileNames(i)/= '') &
              TransferFileNames(i) = trim(outroot)//TransferFileNames(i)
         if (MatterPowerFilenames(i) /= '') &
@@ -417,6 +443,10 @@ program driver
         read (numstr,*) P%InitialConditionVector(1:initial_iso_axion)
      end if
      if (P%Scalar_initial_condition/= initial_adiabatic) use_spline_template = .false.
+     !YG: mode 6 is selected internally by axion_isocurvature; set directly it would run
+     !with the adiabatic A_s, n_s instead of amp_i and the iso tilt
+     if (P%Scalar_initial_condition == initial_iso_axion) &
+          stop 'Do not set initial_condition = 6: use axion_isocurvature = T (axion_iso_only = T for iso alone)'
   end if
 
   if (P%WantScalars) then
@@ -645,48 +675,68 @@ program driver
 
 !!!!! This is where we need to be renee, but where are the cls
 !!!! regenerate the spectra here
-  if (global_error_flag==0) then 
+  if (global_error_flag==0) then
 
-     call CAMB_GetResults(P)
+     if (P%axion_isocurvature) then
+        spline_template_user = use_spline_template
+        if (.not. axion_iso_only) then
+           !YG: adiabatic run first; lensing is deferred so it acts on the adi+iso sum
+           defer_lensing = P%DoLensing
+           call CAMB_GetResults(P)
+           if (global_error_flag==0) then
+              if (P%WantScalars) then
+                 allocate(RHCl_temp(size(Cl_scalar, 1), size(Cl_scalar, 2), size(Cl_scalar, 3))) !RL 111523
+                 RHCl_temp(lmin:P%Max_l,1,C_Temp:C_last) = Cl_scalar(lmin:P%Max_l,1,C_Temp:C_last)
+              end if
 
+              if (P%WantTensors) then
+                 allocate(RHCl_temp_tensor(size(Cl_tensor, 1), size(Cl_tensor, 2), size(Cl_tensor, 3)))  !RL 111523
+                 RHCl_temp_tensor(lmin:P%Max_l,1,C_Temp:C_Cross) = Cl_tensor(lmin:P%Max_l,1,C_Temp:C_Cross)
+              end if
 
-     if (P%axion_isocurvature) then 
-        !          print*, 'computing isocurvature' 
-        if (P%WantScalars) then
-           allocate(RHCl_temp(size(Cl_scalar, 1), size(Cl_scalar, 2), size(Cl_scalar, 3))) !RL 111523
-           RHCl_temp(lmin:P%Max_l,1,C_Temp:C_last) = Cl_scalar(lmin:P%Max_l,1,C_Temp:C_last)
+              !YG: MT is overwritten by the iso run, so write the adiabatic transfers now and
+              !keep its P(k) and sigma8 for the totals
+              if (P%PK_WantTransfer) then
+                 call Transfer_SaveToFiles(MT,AdiTransferFileNames)
+                 matterpower_stash_mode = 1
+                 call Transfer_SaveMatterPower(MT,AdiMatterPowerFileNames)
+                 matterpower_stash_mode = 0
+                 allocate(sigma8_adi(size(MT%sigma_8,1), size(MT%sigma_8,2)))
+                 sigma8_adi = MT%sigma_8
+              end if
+           end if
         end if
 
-        if (P%DoLensing) then
-           allocate(RHCl_temp_lensed(size(Cl_lensed, 1), size(Cl_lensed, 2), size(Cl_lensed, 3))) !RL 111523
-           RHCl_temp_lensed(lmin:P%Max_l,1,C_Temp:C_Cross) = Cl_lensed(lmin:P%Max_l,1,C_Temp:C_Cross)
+        if (global_error_flag==0) then
+           P%Scalar_initial_condition = 6
+           P%InitPower%rat(1) =  0
+           P%InitPower%ant(1) = 0
+           P%InitPower%ScalarPowerAmp(1) = P%amp_i
+           P%InitPower%an(1)= 1-P%r_val/8.d0
+           !YG: the fiducial Cl template is adiabatic and must not shape the iso Cls
+           use_spline_template = .false.
+           call CAMB_GetResults(P)
+           use_spline_template = spline_template_user
         end if
 
-        if (P%WantTensors) then
-           allocate(RHCl_temp_tensor(size(Cl_tensor, 1), size(Cl_tensor, 2), size(Cl_tensor, 3)))  !RL 111523
-           RHCl_temp_tensor(lmin:P%Max_l,1,C_Temp:C_Cross) = Cl_tensor(lmin:P%Max_l,1,C_Temp:C_Cross)
-        end if
+        if (.not. axion_iso_only .and. global_error_flag==0) then
+           if (P%WantScalars)  then
+              Cl_scalar(lmin:P%Max_l,1,C_Temp:C_last) = Cl_scalar(lmin:P%Max_l,1,C_Temp:C_last)  &
+                   +  RHCl_temp(lmin:P%Max_l,1,C_Temp:C_last)
+           end if
 
-        P%Scalar_initial_condition = 6
-        P%InitPower%rat(1) =  0
-        P%InitPower%ant(1) = 0
-        P%InitPower%ScalarPowerAmp(1) = P%amp_i
-        P%InitPower%an(1)= 1-P%r_val/8.d0
+           if (P%WantTensors) then
+              Cl_tensor(lmin:P%Max_l_tensor,1,C_Temp:C_Cross) = Cl_tensor(lmin:P%Max_l_tensor,1,C_Temp:C_Cross)  &
+                   +  RHCl_temp_tensor(lmin:P%Max_l_tensor,1,C_Temp:C_Cross)
+           end if
+
+           !YG: lens the summed unlensed spectra (incl. phi-phi) once
+           defer_lensing = .false.
+           if (P%DoLensing .and. P%WantScalars) call lens_Cls
+        end if
+        defer_lensing = .false.
+     else
         call CAMB_GetResults(P)
-        if (P%WantScalars)  then 
-           Cl_scalar(lmin:P%Max_l,1,C_Temp:C_last) = Cl_scalar(lmin:P%Max_l,1,C_Temp:C_last)  &
-                +  RHCl_temp(lmin:P%Max_l,1,C_Temp:C_last)
-        end if
-
-        if (P%DoLensing) then 
-           Cl_lensed(lmin:lmax_lensed,1,C_Temp:C_Cross) = Cl_lensed(lmin:lmax_lensed,1,C_Temp:C_Cross) &
-                +  RHCl_temp_lensed(lmin:lmax_lensed,1,C_Temp:C_Cross) 
-        end if
-
-        if (P%WantTensors) then 
-           Cl_tensor(lmin:P%Max_l_tensor,1,C_Temp:C_Cross) = Cl_tensor(lmin:P%Max_l_tensor,1,C_Temp:C_Cross)  &
-                +  RHCl_temp_tensor(lmin:P%Max_l_tensor,1,C_Temp:C_Cross) 
-        end if
      end if
   end if
 
@@ -700,8 +750,23 @@ program driver
   !call cpu_time(clock_stop) ! RH timing 
   !print*, 'after getresults', clock_stop - clock_start
   if (P%PK_WantTransfer) then
-     call Transfer_SaveToFiles(MT,TransferFileNames)
-     call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
+     if (P%axion_isocurvature .and. .not. axion_iso_only) then
+        !YG: adi_* files were written after the adiabatic run; iso_* here, and the
+        !main matterpower file and sigma8 are the adi+iso totals
+        call Transfer_SaveToFiles(MT,IsoTransferFileNames)
+        call Transfer_SaveMatterPower(MT,IsoMatterPowerFileNames)
+        matterpower_stash_mode = 2
+        call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
+        matterpower_stash_mode = 0
+        do i=1, P%Transfer%PK_num_redshifts
+           write(*,'(a,f8.4,a,es14.6,a,es14.6)') ' z = ', real(P%Transfer%redshifts(P%Transfer%PK_redshifts_index(i))), &
+                '  sigma8 adiabatic part =', sigma8_adi(i,1), '  isocurvature part =', MT%sigma_8(i,1)
+        end do
+        MT%sigma_8 = sqrt(sigma8_adi**2 + MT%sigma_8**2)
+     else
+        call Transfer_SaveToFiles(MT,TransferFileNames)
+        call Transfer_SaveMatterPower(MT,MatterPowerFileNames)
+     end if
      call Transfer_output_sig8(MT)
   end if
   !!
@@ -731,6 +796,7 @@ program driver
   if (allocated(RHCl_temp)) deallocate(RHCl_temp)
   if (allocated(RHCl_temp_lensed)) deallocate(RHCl_temp_lensed)
   if (allocated(RHCl_temp_tensor)) deallocate(RHCl_temp_tensor)
+  if (allocated(sigma8_adi)) deallocate(sigma8_adi)
 
   call CAMB_cleanup
   !!call cpu_time(clock_totstop) ! RH timing	

@@ -68,7 +68,8 @@ _BASE_INI = {
     "Hinf": 13.7,
     "temp_cmb": 2.7255,
     "helium_fraction": 0.24,
-    "massless_neutrinos": 2.046,
+    # 2.044 massless + 1 massive = N_eff 3.044, as in CAMB
+    "massless_neutrinos": 2.044,
     "massive_neutrinos": 1,
     "share_delta_neff": True,
     "nu_mass_eigenstates": 1,
@@ -194,6 +195,19 @@ class AxiECAMB(BoltzmannBase):
             raise LoggedError(
                 self.log, "Missing template file %s", self._highl_template
             )
+        # Y_He from BBN consistency (as CAMB does) unless it is sampled/fixed as
+        # 'yhe' or set through extra_args 'helium_fraction'
+        self._bbn = None
+        if "helium_fraction" not in self.extra_args:
+            try:
+                from camb import bbn
+            except ImportError as excpt:
+                raise LoggedError(
+                    self.log,
+                    "BBN-consistent Y_He needs the camb Python package; install it, "
+                    "or give 'yhe' as a parameter or 'helium_fraction' in extra_args.",
+                ) from excpt
+            self._bbn = bbn.get_predictor()
         self._rootpid = os.getpid()
         if self.run_dir:
             os.makedirs(self.run_dir, exist_ok=True)
@@ -222,7 +236,9 @@ class AxiECAMB(BoltzmannBase):
                     "isocurvature must be 'adi', 'both', or 'iso'; got %r.",
                     self.isocurvature,
                 )
-            if iso_shadow := {"axion_isocurvature", "initial_condition"} & set(
+            if iso_shadow := {
+                "axion_isocurvature", "axion_iso_only", "initial_condition"
+            } & set(
                 self.extra_args
             ):
                 raise LoggedError(
@@ -321,13 +337,20 @@ class AxiECAMB(BoltzmannBase):
             ini["lens_potential_output_file"] = ""
         ini.update(self.extra_args)
         if self.isocurvature is not None:
-            ini["axion_isocurvature"], ini["initial_condition"] = {
-                "adi": (False, 1), "both": (True, 1), "iso": (False, 6),
+            # mode 6 is selected inside the driver; setting initial_condition = 6
+            # directly would use A_s, n_s instead of the Hinf-derived amplitude
+            ini["axion_isocurvature"], ini["axion_iso_only"] = {
+                "adi": (False, False), "both": (True, False), "iso": (True, True),
             }[self.isocurvature]
+            ini["initial_condition"] = 1
         lmax_calc = max(self._lmax_request + self.lmax_margin, 1000)
         ini["l_max_scalar"] = max(int(ini["l_max_scalar"]), lmax_calc)
+        # with lensing, k_eta >= 18000 (CAMB's lens_potential_accuracy = 1): with
+        # only 2 * lmax, C_L^phiphi is not converged at L > 1500 (-10% at L ~ 2500)
         ini["k_eta_max_scalar"] = max(
-            int(ini["k_eta_max_scalar"]), 2 * ini["l_max_scalar"]
+            int(ini["k_eta_max_scalar"]),
+            2 * ini["l_max_scalar"],
+            18000 if self.lensing else 0,
         )
         rundir = self._rundir()
         ini["output_root"] = os.path.join(rundir, "ax")
@@ -347,6 +370,10 @@ class AxiECAMB(BoltzmannBase):
                     p,
                     list(PARAM_TO_INI),
                 )
+
+        if self._bbn is not None and "yhe" not in params_values_dict:
+            neff = float(ini["massless_neutrinos"]) + float(ini["massive_neutrinos"])
+            ini["helium_fraction"] = self._bbn.Y_He(float(ini["ombh2"]), neff - 3.044)
 
         # outputs of the previous evaluation must not survive: a failed run
         # would otherwise silently hand back stale spectra

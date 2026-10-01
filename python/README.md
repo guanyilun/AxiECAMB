@@ -47,11 +47,24 @@ Cosmological: `ombh2`, `omnuh2`, `omk`, `H0`, `tau`, `As`, `ns`, `nrun`,
 
 Axion sector: `m_ax` (eV) or `log10_m_ax`, `g_axion` (= g_agamma * M_pl),
 and depending on the `use_axfrac` option either (`omdah2`, `axfrac`) or
-(`omch2`, `omaxh2`). Isocurvature: `Hinf` (with `axion_isocurvature: T` in
-`extra_args`; the amplitude `alpha_ax` is derived internally, not an input).
+(`omch2`, `omaxh2`). Isocurvature: `Hinf`, with the `isocurvature` option below
+(the amplitude is derived internally from `Hinf` and the initial field value).
 
 Anything else in `params.ini` can be fixed through `extra_args` (raw ini keys),
-e.g. `extra_args: {accuracy_boost: 1.5, massless_neutrinos: 2.046}`.
+e.g. `extra_args: {accuracy_boost: 1.5, massless_neutrinos: 2.044}`.
+
+Defaults chosen to match CAMB under cobaya:
+- `yhe` is BBN-consistent (CAMB's `camb.bbn` predictor, from `ombh2` and
+  N_eff) unless `yhe` is given as a parameter or `helium_fraction` is set in
+  `extra_args`; this needs the `camb` Python package.
+- N_eff = 3.044 (`massless_neutrinos: 2.044` plus one massive species).
+- With lensing, `k_eta_max_scalar` is at least 18000 (CAMB's
+  `lens_potential_accuracy: 1`); `2 * l_max_scalar` alone leaves C_L^phiphi
+  ~10% low at L ~ 2500.
+- Lensing is linear (`do_nonlinear: 0`) unless set in `extra_args`. CAMB's
+  cobaya default is nonlinear (Mead2020), which AxiECAMB does not have;
+  `do_nonlinear: 2` with `halofit_version: 4` (Takahashi) is the closest, but
+  halofit is not calibrated for strong axion suppression.
 
 ## Wrapper options
 
@@ -65,7 +78,8 @@ e.g. `extra_args: {accuracy_boost: 1.5, massless_neutrinos: 2.046}`.
 | `num_threads` | `0` | OpenMP threads per evaluation (0 = all cores) |
 | `timeout` | `600` | seconds before an evaluation is declared failed |
 | `run_dir` | none | keep run files here instead of a temp dir (debugging) |
-| `extra_args` | `{}` | raw `params.ini` overrides |
+| `isocurvature` | none | `adi`, `both` (adiabatic + axion isocurvature, lensed together) or `iso` (isocurvature only); none leaves it to `extra_args` |
+| `extra_args` | `{}` | raw `params.ini` overrides (e.g. `movH_switch`) |
 
 Failed or timed-out evaluations are reported to cobaya as invalid points
 (rejected by the sampler) rather than crashing the chain.

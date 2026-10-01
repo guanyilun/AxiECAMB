@@ -84,7 +84,7 @@
     if (CData%Params%WantCls) then
         call ClTransferToCl(CData%ClTransScal,CData%ClTransTens, CData%ClTransvec)
 !        print*, 'Yes Renee we are calling ClTransferToCl in CAMB_TransfersToPowers'
-        if (CP%DoLensing .and. global_error_flag==0) call lens_Cls
+        if (CP%DoLensing .and. .not. defer_lensing .and. global_error_flag==0) call lens_Cls
         if (global_error_flag/=0) return
     end if
     if (CData%Params%WantTransfer) call Transfer_Get_sigma8(Cdata%MTrans,8._dl)
@@ -253,7 +253,7 @@
 
     if (.not. CP%OnlyTransfers) then
        !!!write(*, *) 'RL, if 4'
-        if (CP%DoLensing .and. global_error_flag==0) then
+        if (CP%DoLensing .and. .not. defer_lensing .and. global_error_flag==0) then
 
               call lens_Cls
            end if

@@ -46,6 +46,9 @@ implicit none
  integer :: lensing_method = lensing_method_curv_corr
 
  real(dl) :: ALens_Fiducial = 0._dl
+ !YG: set by the driver so CAMB_GetResults skips lens_Cls, letting adi+iso unlensed Cls
+ !be summed first and then lensed once
+ logical :: defer_lensing = .false.
  !Change from zero to set lensing smoothing by scaling amplitude of fiducial template !RL incorporating 013125
  
 private
@@ -67,7 +70,7 @@ private
  real(dl), dimension(:), allocatable  :: lnfa
 
 public lens_Cls, lensing_includes_tensors, lensing_method, lensing_method_flat_corr,&
-      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, ALens_Fiducial !RL 013125 incorporating ALens_Fiducial
+      lensing_method_curv_corr,lensing_method_harmonic, BessI, bessj0, ALens_Fiducial, defer_lensing !RL 013125 incorporating ALens_Fiducial
 contains
 
 
