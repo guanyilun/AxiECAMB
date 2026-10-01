@@ -104,6 +104,11 @@
              rknl=1./rmid
              rneff=-3-d1
              rncur=-d2
+             !YG (from upstream, RL): a spline overshoot of transfer noise on the ULA Jeans
+             !cliff can give a false sigma=1 root with rneff outside halofit's CDM range
+             ![-3,0]; the Takahashi polynomial then overflows and C_l^phiphi becomes NaN.
+             !Stay linear instead (goto 101 leaves nonlin_ratio = 1).
+             if (rneff < -3._dl .or. rneff > 0._dl) goto 101
              exit
           elseif (diff.gt.0.001) then
              xlogr1=log10(rmid)
